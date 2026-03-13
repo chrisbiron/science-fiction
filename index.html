@@ -45,10 +45,22 @@
             background: rgba(255,255,255,0.2);
             color: #fff;
         }
+        body.light-bg {
+            background: #fff;
+        }
+        body.light-bg .switcher button {
+            background: rgba(0,0,0,0.1);
+            color: rgba(0,0,0,0.5);
+        }
+        body.light-bg .switcher button:hover {
+            background: rgba(0,0,0,0.15);
+        }
+        body.light-bg .switcher button.active {
+            background: rgba(0,0,0,0.2);
+            color: #000;
+        }
         .scene {
             display: none;
-            width: 1440px;
-            height: 900px;
         }
         .scene.active {
             display: block;
@@ -65,6 +77,7 @@
     <div class="switcher">
         <button class="active" onclick="switchScene(0)">Scene 1</button>
         <button onclick="switchScene(1)">Scene 2</button>
+        <button onclick="switchScene(2)">Scene 3</button>
     </div>
 
     <div class="canvas-wrapper">
@@ -73,6 +86,9 @@
         </div>
         <div class="scene" id="scene-1">
             <div style="width: 1440px; height: 900px" data-us-project="Z244AuHbFzaGjvW3YEFi"></div>
+        </div>
+        <div class="scene" id="scene-2" data-bg="light">
+            <div style="width: 1431px; height: 516px" data-us-project="2kGJ2bqu59WCaMh2GrvB"></div>
         </div>
     </div>
 
@@ -84,6 +100,12 @@
             document.querySelectorAll('.switcher button').forEach((b, i) => {
                 b.classList.toggle('active', i === index);
             });
+            var activeScene = document.getElementById('scene-' + index);
+            if (activeScene && activeScene.dataset.bg === 'light') {
+                document.body.classList.add('light-bg');
+            } else {
+                document.body.classList.remove('light-bg');
+            }
         }
     </script>
 
