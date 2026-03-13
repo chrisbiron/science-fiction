@@ -67,79 +67,115 @@
             justify-content: center;
             width: 100%;
         }
-        .scene {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
+        #scene-container {
             transition: opacity 0.3s ease;
-        }
-        .scene.active {
-            opacity: 1;
-            pointer-events: auto;
-            z-index: 1;
         }
     </style>
 </head>
 <body>
-    <div class="switcher">
-        <button class="active" onclick="switchScene(0)">Scene 1</button>
-        <button onclick="switchScene(1)">Scene 2</button>
-        <button onclick="switchScene(2)">Scene 3</button>
-        <button onclick="switchScene(3)">Scene 4</button>
-        <button onclick="switchScene(4)">Scene 5</button>
-        <button onclick="switchScene(5)">Scene 6</button>
-        <button onclick="switchScene(6)">Scene 7</button>
-        <button onclick="switchScene(7)">Scene 8</button>
-        <button onclick="switchScene(8)">Experiment</button>
-    </div>
-
+    <div class="switcher" id="switcher"></div>
     <div class="canvas-wrapper">
-        <div class="scene active" id="scene-0">
-            <div style="width: 1440px; height: 900px" data-us-project="f6e6KS81bGuePpMBdJAZ"></div>
-        </div>
-        <div class="scene" id="scene-1">
-            <div style="width: 1440px; height: 900px" data-us-project="Z244AuHbFzaGjvW3YEFi"></div>
-        </div>
-        <div class="scene" id="scene-2" data-bg="light">
-            <div style="width: 1431px; height: 516px" data-us-project="2kGJ2bqu59WCaMh2GrvB"></div>
-        </div>
-        <div class="scene" id="scene-3">
-            <div style="width: 900px; height: 900px" data-us-project="7UWmcmyu6W8Lrjl8C7Tk"></div>
-        </div>
-        <div class="scene" id="scene-4">
-            <div style="width: 1440px; height: 900px" data-us-project="mnLLdMphpyZXNqlaHyeZ"></div>
-        </div>
-        <div class="scene" id="scene-5">
-            <div style="width: 1440px; height: 900px" data-us-project="HTasbroX8s5bMCU9sGEi"></div>
-        </div>
-        <div class="scene" id="scene-6">
-            <div style="width: 1440px; height: 900px" data-us-project="7JgIQYv8mO8eHgMV52X2"></div>
-        </div>
-        <div class="scene" id="scene-7">
-            <div style="width: 1440px; height: 900px" data-us-project="5sKS8qHd8SCbEDWl3uGH"></div>
-        </div>
-        <div class="scene" id="scene-8">
-            <iframe src="experiment.html" style="width: 1440px; height: 900px; border: none;"></iframe>
-        </div>
+        <div id="scene-container"></div>
     </div>
 
     <script>
-        function switchScene(index) {
-            document.querySelectorAll('.scene').forEach((s, i) => {
-                s.classList.toggle('active', i === index);
+        // --- Scene config ---
+        const scenes = [
+            { label: 'Scene 1', project: 'f6e6KS81bGuePpMBdJAZ', width: 1440, height: 900 },
+            { label: 'Scene 2', project: 'Z244AuHbFzaGjvW3YEFi', width: 1440, height: 900 },
+            { label: 'Scene 3', project: '2kGJ2bqu59WCaMh2GrvB', width: 1431, height: 516, bg: 'light' },
+            { label: 'Scene 4', project: '7UWmcmyu6W8Lrjl8C7Tk', width: 900, height: 900 },
+            { label: 'Scene 5', project: 'mnLLdMphpyZXNqlaHyeZ', width: 1440, height: 900 },
+            { label: 'Scene 6', project: 'HTasbroX8s5bMCU9sGEi', width: 1440, height: 900 },
+            { label: 'Scene 7', project: '7JgIQYv8mO8eHgMV52X2', width: 1440, height: 900 },
+            { label: 'Scene 8', project: '5sKS8qHd8SCbEDWl3uGH', width: 1440, height: 900 },
+            { label: 'Experiment', iframe: 'experiment.html', width: 1440, height: 900 }
+        ];
+
+        let currentScene = -1;
+        let usReady = false;
+        const container = document.getElementById('scene-container');
+        const switcher = document.getElementById('switcher');
+
+        // Build switcher buttons
+        scenes.forEach((scene, i) => {
+            const btn = document.createElement('button');
+            btn.textContent = scene.label;
+            btn.addEventListener('click', () => switchScene(i));
+            switcher.appendChild(btn);
+        });
+
+        // Load Unicorn Studio script once
+        function loadUnicornStudio() {
+            return new Promise((resolve) => {
+                if (window.UnicornStudio && window.UnicornStudio.init) {
+                    resolve();
+                    return;
+                }
+                window.UnicornStudio = { isInitialized: false };
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.1.4/dist/unicornStudio.umd.js';
+                script.onload = () => resolve();
+                document.head.appendChild(script);
             });
-            document.querySelectorAll('.switcher button').forEach((b, i) => {
+        }
+
+        async function switchScene(index) {
+            if (index === currentScene) return;
+
+            // Update buttons
+            switcher.querySelectorAll('button').forEach((b, i) => {
                 b.classList.toggle('active', i === index);
             });
-            var activeScene = document.getElementById('scene-' + index);
-            if (activeScene && activeScene.dataset.bg === 'light') {
+
+            // Fade out
+            container.style.opacity = '0';
+            await new Promise(r => setTimeout(r, 200));
+
+            // Tear down current scene — destroy Unicorn Studio instances and remove DOM
+            if (window.UnicornStudio && window.UnicornStudio.destroy) {
+                try { UnicornStudio.destroy(); } catch(e) {}
+            }
+            container.innerHTML = '';
+
+            const scene = scenes[index];
+            currentScene = index;
+
+            // Background
+            if (scene.bg === 'light') {
                 document.body.classList.add('light-bg');
             } else {
                 document.body.classList.remove('light-bg');
             }
-        }
-    </script>
 
-    <script type="text/javascript">!function(){var u=window.UnicornStudio;if(u&&u.init){if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",function(){u.init()})}else{u.init()}}else{window.UnicornStudio={isInitialized:!1};var i=document.createElement("script");i.src="https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.1.4/dist/unicornStudio.umd.js",i.onload=function(){if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",function(){UnicornStudio.init()})}else{UnicornStudio.init()}},(document.head||document.body).appendChild(i)}}();</script>
+            // Build new scene
+            if (scene.iframe) {
+                const iframe = document.createElement('iframe');
+                iframe.src = scene.iframe;
+                iframe.style.width = scene.width + 'px';
+                iframe.style.height = scene.height + 'px';
+                iframe.style.border = 'none';
+                container.appendChild(iframe);
+            } else {
+                const div = document.createElement('div');
+                div.style.width = scene.width + 'px';
+                div.style.height = scene.height + 'px';
+                div.setAttribute('data-us-project', scene.project);
+                container.appendChild(div);
+
+                // Init Unicorn Studio for this single element
+                await loadUnicornStudio();
+                if (window.UnicornStudio && window.UnicornStudio.init) {
+                    UnicornStudio.init();
+                }
+            }
+
+            // Fade in
+            container.style.opacity = '1';
+        }
+
+        // Load first scene
+        switchScene(0);
+    </script>
 </body>
 </html>
