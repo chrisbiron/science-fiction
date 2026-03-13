@@ -16,14 +16,14 @@
             overflow: hidden;
         }
 
-        /* Top Controls */
+        /* Bottom Controls */
         .controls {
             display: flex;
             align-items: center;
             gap: 20px;
             padding: 12px 20px;
             background: rgba(255,255,255,0.05);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-top: 1px solid rgba(255,255,255,0.1);
             flex-shrink: 0;
             flex-wrap: wrap;
         }
@@ -107,6 +107,11 @@
     </style>
 </head>
 <body>
+    <div class="canvas-area">
+        <canvas id="mainCanvas" width="1440" height="900"></canvas>
+        <div class="hint" id="hint">Upload a white SVG to begin</div>
+    </div>
+
     <div class="controls">
         <button class="btn" id="uploadBtn">Upload SVG</button>
         <input type="file" id="svgUpload" accept=".svg,image/svg+xml">
@@ -139,11 +144,6 @@
 
         <button class="btn active" id="followToggle">Follow Cursor: On</button>
         <button class="btn" id="guidesToggle">Guides: On</button>
-    </div>
-
-    <div class="canvas-area">
-        <canvas id="mainCanvas" width="1440" height="900"></canvas>
-        <div class="hint" id="hint">Upload a white SVG to begin</div>
     </div>
 
     <script>
