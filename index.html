@@ -59,17 +59,24 @@
             background: rgba(0,0,0,0.2);
             color: #000;
         }
-        .scene {
-            display: none;
-        }
-        .scene.active {
-            display: block;
-        }
         .canvas-wrapper {
+            position: relative;
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 100%;
+        }
+        .scene {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .scene.active {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
         }
     </style>
 </head>
