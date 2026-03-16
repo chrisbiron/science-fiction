@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iris Blur Experiment</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #111;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        #mainCanvas {
+            background: #000;
+        }
+
+        .hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255,255,255,0.25);
+            font-size: 14px;
+            pointer-events: none;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        /* Bottom Controls */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .control-group label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .control-group input[type="range"] {
+            width: 100px;
+            accent-color: #fff;
+        }
+        .control-group .value {
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            min-width: 26px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .btn {
+            padding: 5px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .btn.active {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.4);
+        }
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: rgba(255,255,255,0.1);
+        }
+        #svgUpload { display: none; }
+
+        /* Gradient bar */
+        .gradient-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .gradient-preview {
+            width: 80px;
+            height: 18px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.2);
+            cursor: pointer;
+        }
+        .gradient-stops {
+            display: flex;
+            gap: 3px;
+        }
+        .gradient-stops input[type="color"] {
+            width: 22px;
+            height: 22px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+            padding: 0;
+        }
+        .gradient-stops input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 1px;
+        }
+        .gradient-stops input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas-area">
+        <canvas id="mainCanvas" width="1440" height="900"></canvas>
+        <div class="hint" id="hint">Upload a white SVG to begin</div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="uploadBtn">Upload SVG</button>
+        <input type="file" id="svgUpload" accept=".svg,image/svg+xml">
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <label>Size</label>
+            <input type="range" id="irisSize" min="20" max="600" value="200">
+            <span class="value" id="irisSizeVal">200</span>
+        </div>
+
+        <div class="control-group">
+            <label>Feather</label>
+            <input type="range" id="feather" min="10" max="400" value="150">
+            <span class="value" id="featherVal">150</span>
+        </div>
+
+        <div class="control-group">
+            <label>Roundness</label>
+            <input type="range" id="roundness" min="20" max="100" value="70">
+            <span class="value" id="roundnessVal">70</span>
+        </div>
+
+        <div class="control-group">
+            <label>Blur</label>
+            <input type="range" id="blur" min="1" max="60" value="15">
+            <span class="value" id="blurVal">15</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <label>Gradient</label>
+            <div class="gradient-stops">
+                <input type="color" id="color1" value="#000000">
+                <input type="color" id="color2" value="#ff0066">
+                <input type="color" id="color3" value="#00ccff">
+                <input type="color" id="color4" value="#ffffff">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Mix</label>
+            <input type="range" id="gradientMix" min="0" max="100" value="80">
+            <span class="value" id="gradientMixVal">80</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="btn active" id="followToggle">Follow: On</button>
+        <button class="btn active" id="guidesToggle">Guides: On</button>
+        <button class="btn active" id="thresholdToggle">Threshold: On</button>
+
+        <div class="control-group">
+            <label>Cutoff</label>
+            <input type="range" id="cutoff" min="1" max="254" value="10">
+            <span class="value" id="cutoffVal">10</span>
+        </div>
+    </div>
+
+    <script>
+        const W = 1440, H = 900;
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // Base canvas: sharp SVG on black
+        const baseCanvas = document.createElement('canvas');
+        baseCanvas.width = W; baseCanvas.height = H;
+        const baseCtx = baseCanvas.getContext('2d');
+
+        // Blur cache
+        const blurCacheCanvas = document.createElement('canvas');
+        blurCacheCanvas.width = W; blurCacheCanvas.height = H;
+        let blurCacheData = null;
+        let blurCacheDirty = true;
+        let blurCacheLastBlur = 0;
+
+        // State
+        let svgImage = null;
+        let followCursor = true;
+        let showGuides = true;
+        let thresholdOn = true;
+        let thresholdCutoff = 10;
+        let pendingRender = false;
+
+        const iris = {
+            x: W / 2, y: H / 2,
+            size: 200,       // inner radius (sharp zone)
+            feather: 150,    // feather width (transition zone)
+            roundness: 70,   // 20-100, controls ellipse aspect (100 = circle)
+            blur: 15
+        };
+
+        // Gradient map colors
+        let gradientColors = ['#000000', '#ff0066', '#00ccff', '#ffffff'];
+        let gradientMix = 0.8;
+        let gradientLUT = null; // 256-entry RGB lookup table
+
+        function buildGradientLUT() {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 1;
+            const gc = c.getContext('2d');
+            const grad = gc.createLinearGradient(0, 0, 256, 0);
+            grad.addColorStop(0, gradientColors[0]);
+            grad.addColorStop(0.33, gradientColors[1]);
+            grad.addColorStop(0.66, gradientColors[2]);
+            grad.addColorStop(1, gradientColors[3]);
+            gc.fillStyle = grad;
+            gc.fillRect(0, 0, 256, 1);
+            const data = gc.getImageData(0, 0, 256, 1).data;
+            gradientLUT = new Uint8Array(256 * 3);
+            for (let i = 0; i < 256; i++) {
+                gradientLUT[i * 3] = data[i * 4];
+                gradientLUT[i * 3 + 1] = data[i * 4 + 1];
+                gradientLUT[i * 3 + 2] = data[i * 4 + 2];
+            }
+        }
+        buildGradientLUT();
+
+        // Dragging
+        let dragging = false;
+        let dragOffset = { x: 0, y: 0 };
+
+        // --- SVG Upload ---
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            document.getElementById('svgUpload').click();
+        });
+        document.getElementById('svgUpload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    svgImage = img;
+                    document.getElementById('hint').style.display = 'none';
+                    blurCacheDirty = true;
+                    render();
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // --- Controls ---
+        function bindSlider(id, valId, obj, key, onChange) {
+            const el = document.getElementById(id);
+            el.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value);
+                if (obj) obj[key] = v;
+                document.getElementById(valId).textContent = v;
+                if (onChange) onChange(v);
+                render();
+            });
+        }
+
+        bindSlider('irisSize', 'irisSizeVal', iris, 'size');
+        bindSlider('feather', 'featherVal', iris, 'feather');
+        bindSlider('roundness', 'roundnessVal', iris, 'roundness');
+        bindSlider('blur', 'blurVal', iris, 'blur', () => { blurCacheDirty = true; });
+        bindSlider('cutoff', 'cutoffVal', null, null, (v) => { thresholdCutoff = v; });
+        bindSlider('gradientMix', 'gradientMixVal', null, null, (v) => { gradientMix = v / 100; });
+
+        // Color pickers
+        ['color1', 'color2', 'color3', 'color4'].forEach((id, i) => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                gradientColors[i] = e.target.value;
+                buildGradientLUT();
+                render();
+            });
+        });
+
+        // Toggles
+        document.getElementById('followToggle').addEventListener('click', (e) => {
+            followCursor = !followCursor;
+            e.target.textContent = `Follow: ${followCursor ? 'On' : 'Off'}`;
+            e.target.classList.toggle('active', followCursor);
+            canvas.style.cursor = followCursor ? 'none' : 'default';
+            render();
+        });
+        document.getElementById('guidesToggle').addEventListener('click', (e) => {
+            showGuides = !showGuides;
+            e.target.textContent = `Guides: ${showGuides ? 'On' : 'Off'}`;
+            e.target.classList.toggle('active', showGuides);
+            render();
+        });
+        document.getElementById('thresholdToggle').addEventListener('click', (e) => {
+            thresholdOn = !thresholdOn;
+            e.target.textContent = `Threshold: ${thresholdOn ? 'On' : 'Off'}`;
+            e.target.classList.toggle('active', thresholdOn);
+            render();
+        });
+
+        // --- Mouse ---
+        function getCanvasPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) * (W / rect.width),
+                y: (e.clientY - rect.top) * (H / rect.height)
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!followCursor) {
+                const pos = getCanvasPos(e);
+                const dx = pos.x - iris.x, dy = pos.y - iris.y;
+                const outerR = iris.size + iris.feather;
+                if (dx * dx + dy * dy <= outerR * outerR) {
+                    dragging = true;
+                    dragOffset.x = pos.x - iris.x;
+                    dragOffset.y = pos.y - iris.y;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getCanvasPos(e);
+            if (followCursor) {
+                iris.x = pos.x;
+                iris.y = pos.y;
+                scheduleRender();
+            } else if (dragging) {
+                iris.x = pos.x - dragOffset.x;
+                iris.y = pos.y - dragOffset.y;
+                scheduleRender();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => { dragging = false; });
+        canvas.addEventListener('mouseleave', () => { dragging = false; });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -10 : 10;
+            iris.size = Math.max(20, Math.min(600, iris.size + delta));
+            document.getElementById('irisSize').value = iris.size;
+            document.getElementById('irisSizeVal').textContent = iris.size;
+            render();
+        }, { passive: false });
+
+        // --- Render scheduling ---
+        function scheduleRender() {
+            if (!pendingRender) {
+                pendingRender = true;
+                requestAnimationFrame(() => {
+                    pendingRender = false;
+                    render();
+                });
+            }
+        }
+
+        // --- Blur Cache ---
+        function updateBlurCache() {
+            if (!blurCacheDirty && blurCacheLastBlur === iris.blur) return;
+            const bCtx = blurCacheCanvas.getContext('2d', { willReadFrequently: true });
+            bCtx.clearRect(0, 0, W, H);
+            bCtx.filter = `blur(${iris.blur}px)`;
+            bCtx.drawImage(baseCanvas, 0, 0);
+            bCtx.filter = 'none';
+            blurCacheData = bCtx.getImageData(0, 0, W, H).data;
+            blurCacheDirty = false;
+            blurCacheLastBlur = iris.blur;
+        }
+
+        // --- Draw base ---
+        function drawBase() {
+            baseCtx.fillStyle = '#000';
+            baseCtx.fillRect(0, 0, W, H);
+            if (svgImage) {
+                const scale = Math.min(W / svgImage.naturalWidth, H / svgImage.naturalHeight, 1);
+                const w = svgImage.naturalWidth * scale;
+                const h = svgImage.naturalHeight * scale;
+                const x = (W - w) / 2;
+                const y = (H - h) / 2;
+                baseCtx.drawImage(svgImage, x, y, w, h);
+            }
+        }
+
+        // --- Main Render ---
+        function render() {
+            if (!svgImage) return;
+
+            drawBase();
+            updateBlurCache();
+
+            const sharpData = baseCtx.getImageData(0, 0, W, H).data;
+            const result = ctx.createImageData(W, H);
+            const rd = result.data;
+            const blurData = blurCacheData;
+
+            const cx = iris.x, cy = iris.y;
+            const innerR = iris.size;
+            const outerR = iris.size + iris.feather;
+            const featherRange = iris.feather;
+            // Roundness: 100 = circle, lower = more elliptical (wider horizontally)
+            const aspectY = iris.roundness / 100; // vertical scale factor
+
+            const lut = gradientLUT;
+            const mix = gradientMix;
+
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const idx = (y * W + x) * 4;
+
+                    // Elliptical distance
+                    const dx = x - cx;
+                    const dy = (y - cy) / aspectY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    let t; // 0 = sharp, 1 = fully blurred
+                    if (dist <= innerR) {
+                        t = 0;
+                    } else if (dist >= outerR) {
+                        t = 1;
+                    } else {
+                        // Smooth interpolation through feather zone
+                        const raw = (dist - innerR) / featherRange;
+                        t = raw * raw * (3 - 2 * raw); // smoothstep
+                    }
+
+                    // Blend sharp and blurred
+                    const invT = 1 - t;
+                    let r = sharpData[idx] * invT + blurData[idx] * t;
+                    let g = sharpData[idx + 1] * invT + blurData[idx + 1] * t;
+                    let b = sharpData[idx + 2] * invT + blurData[idx + 2] * t;
+
+                    // Apply gradient map to blurred regions
+                    if (t > 0 && mix > 0) {
+                        const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+                        const li = lum * 3;
+                        const gr = lut[li], gg = lut[li + 1], gb = lut[li + 2];
+                        // Mix gradient map based on blur amount and mix slider
+                        const gmix = t * mix;
+                        const ginv = 1 - gmix;
+                        r = r * ginv + gr * gmix;
+                        g = g * ginv + gg * gmix;
+                        b = b * ginv + gb * gmix;
+                    }
+
+                    rd[idx] = r;
+                    rd[idx + 1] = g;
+                    rd[idx + 2] = b;
+                    rd[idx + 3] = 255;
+                }
+            }
+
+            // Threshold
+            if (thresholdOn) {
+                for (let i = 0; i < rd.length; i += 4) {
+                    const val = rd[i] >= thresholdCutoff ? 255 : 0;
+                    rd[i] = val; rd[i + 1] = val; rd[i + 2] = val;
+                }
+            }
+
+            ctx.putImageData(result, 0, 0);
+
+            // Guides
+            if (showGuides) {
+                const aspectY_draw = iris.roundness / 100;
+                ctx.save();
+                ctx.translate(iris.x, iris.y);
+                ctx.scale(1, aspectY_draw);
+
+                // Inner ellipse
+                ctx.beginPath();
+                ctx.arc(0, 0, iris.size, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.setLineDash([4, 6]);
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Outer ellipse (feather edge)
+                ctx.beginPath();
+                ctx.arc(0, 0, iris.size + iris.feather, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctx.stroke();
+
+                ctx.setLineDash([]);
+                ctx.restore();
+            }
+        }
+
+        // --- Default SVG ---
+        const defaultSVG = `<svg width="448" height="139" viewBox="0 0 448 139" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M358.751 135.492V55.1648H344.621V35.8087H358.751V30.1954C358.751 21.0336 361.719 13.7428 367.654 8.32311C373.59 2.77437 381.849 0 392.43 0H405.786V20.9045H394.366C391.011 20.9045 388.817 21.3562 387.785 22.2595C386.881 23.1628 386.43 25.1629 386.43 28.2598V35.8087H405.979V55.1648H387.01V135.492H358.751ZM447.789 23.6144H418.754V0H447.789V23.6144ZM447.401 135.492H419.142V35.8087H447.401V135.492Z" fill="white"/>
+<path d="M339.723 91.5536H241.007V69.1006H339.723V91.5536Z" fill="white"/>
+<path d="M229.844 23.6144H200.81V0H229.844V23.6144ZM229.457 135.492H201.197V35.8087H229.457V135.492Z" fill="white"/>
+<path d="M146.552 138.202C130.68 138.202 118.163 133.75 109.002 124.846C99.9688 115.943 95.4524 102.845 95.4524 85.5536C95.4524 68.7783 100.098 55.8743 109.389 46.8414C118.68 37.6796 131.132 33.0986 146.746 33.0986C160.295 33.0986 171.457 36.3892 180.232 42.9702C189.007 49.4222 193.652 58.9712 194.168 71.6172H166.296C165.908 67.1008 165.07 63.6812 163.779 61.3585C162.618 58.9067 160.682 57.2292 157.972 56.3259C155.263 55.2936 151.391 54.7774 146.359 54.7774C140.294 54.7774 135.778 55.4871 132.81 56.9066C129.971 58.197 127.906 60.9714 126.616 65.2297C125.454 69.488 124.874 76.2626 124.874 85.5536C124.874 94.8445 125.454 101.619 126.616 105.877C127.906 110.136 129.971 112.975 132.81 114.394C135.778 115.814 140.294 116.523 146.359 116.523C151.391 116.523 155.263 116.072 157.972 115.168C160.682 114.136 162.618 112.458 163.779 110.136C165.07 107.684 165.908 104.135 166.296 99.4899H194.168C193.652 112.265 189.007 121.943 180.232 128.524C171.457 134.976 160.231 138.202 146.552 138.202Z" fill="white"/>
+<path d="M46.4604 138.202C37.8147 138.202 29.9432 136.912 22.846 134.331C15.7488 131.75 10.1355 127.879 6.00624 122.717C1.87695 117.556 -0.123175 111.362 0.00586547 104.135H27.1043C27.3624 107.748 28.0721 110.652 29.2335 112.846C30.3949 114.91 32.395 116.459 35.2339 117.491C38.2018 118.523 42.3311 119.04 47.6218 119.04C54.719 119.04 59.4935 118.136 61.9452 116.33C64.397 114.523 65.6229 111.62 65.6229 107.619C65.6229 104.91 64.7196 102.845 62.913 101.426C61.2355 100.006 58.0095 98.8447 53.235 97.9414L30.9756 93.8767C21.8137 92.1991 14.6519 89.0376 9.49033 84.3922C4.45776 79.7467 1.94147 73.7464 1.94147 66.3911C1.94147 59.939 3.74804 54.1967 7.36117 49.1642C11.1033 44.1316 16.3295 40.1959 23.0396 37.357C29.8787 34.5181 37.8147 33.0986 46.8475 33.0986C54.848 33.0986 62.2678 34.389 69.107 36.9699C75.9461 39.5507 81.3658 43.3573 85.3661 48.3899C89.3663 53.4225 91.3019 59.3584 91.1729 66.1975H64.0744C63.6873 61.0359 62.2033 57.4227 59.6225 55.3581C57.0417 53.1644 52.3963 52.0676 45.6862 52.0676C39.1051 52.0676 34.6532 52.9063 32.3305 54.5839C30.1368 56.2614 28.9754 58.9067 28.8464 62.5198C28.8464 65.3587 29.6206 67.5524 31.1691 69.1009C32.8466 70.6494 35.9436 71.8107 40.46 72.585L62.5259 76.4562C72.0749 78.1337 79.4947 81.3597 84.7854 86.1342C90.076 90.7797 92.7214 96.8446 92.7214 104.329C92.7214 110.781 90.8503 116.588 87.1081 121.749C83.3659 126.911 77.9463 130.976 70.849 133.944C63.8809 136.783 55.7513 138.202 46.4604 138.202Z" fill="white"/>
+</svg>`;
+
+        function loadDefaultSVG() {
+            const blob = new Blob([defaultSVG], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+                svgImage = img;
+                document.getElementById('hint').style.display = 'none';
+                blurCacheDirty = true;
+                render();
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        }
+
+        loadDefaultSVG();
+    </script>
+</body>
+</html>
