@@ -596,17 +596,19 @@
                     let g = sharpData[idx + 1] * invT + blurData[idx + 1] * t;
                     let b = sharpData[idx + 2] * invT + blurData[idx + 2] * t;
 
-                    // Apply gradient map to blurred regions
+                    // Apply gradient map to blurred regions (multiply blend)
                     if (t > 0 && mix > 0) {
                         const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
                         const li = lum * 3;
                         const gr = lut[li], gg = lut[li + 1], gb = lut[li + 2];
-                        // Mix gradient map based on blur amount and mix slider
+                        // Multiply: pixel brightness modulates gradient color
+                        // Dark pixels (background) stay dark, bright pixels (SVG) show gradient colors
                         const gmix = t * mix;
                         const ginv = 1 - gmix;
-                        r = r * ginv + gr * gmix;
-                        g = g * ginv + gg * gmix;
-                        b = b * ginv + gb * gmix;
+                        const brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+                        r = r * ginv + (gr * brightness) * gmix;
+                        g = g * ginv + (gg * brightness) * gmix;
+                        b = b * ginv + (gb * brightness) * gmix;
                     }
 
                     rd[idx] = r;
