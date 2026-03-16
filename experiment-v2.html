@@ -25,7 +25,7 @@
             overflow: hidden;
         }
         #mainCanvas {
-            background: #000;
+            background: #fff;
         }
 
         .hint {
@@ -536,7 +536,7 @@
 
         // --- Draw base ---
         function drawBase() {
-            baseCtx.fillStyle = '#000';
+            baseCtx.fillStyle = '#fff';
             baseCtx.fillRect(0, 0, W, H);
             if (svgImage) {
                 const scale = Math.min(W / svgImage.naturalWidth, H / svgImage.naturalHeight, 1);
@@ -544,7 +544,10 @@
                 const h = svgImage.naturalHeight * scale;
                 const x = (W - w) / 2;
                 const y = (H - h) / 2;
+                // Draw SVG with difference blend — white on white = black
+                baseCtx.globalCompositeOperation = 'difference';
                 baseCtx.drawImage(svgImage, x, y, w, h);
+                baseCtx.globalCompositeOperation = 'source-over';
             }
         }
 
