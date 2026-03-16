@@ -187,8 +187,8 @@
 
         <div class="control-group">
             <label>Size</label>
-            <input type="range" id="irisSize" min="20" max="600" value="200">
-            <span class="value" id="irisSizeVal">200</span>
+            <input type="range" id="irisSize" min="20" max="600" value="65">
+            <span class="value" id="irisSizeVal">65</span>
         </div>
 
         <div class="control-group">
@@ -205,8 +205,8 @@
 
         <div class="control-group">
             <label>Blur</label>
-            <input type="range" id="blur" min="1" max="60" value="15">
-            <span class="value" id="blurVal">15</span>
+            <input type="range" id="blur" min="1" max="60" value="20">
+            <span class="value" id="blurVal">20</span>
         </div>
 
         <div class="divider"></div>
@@ -221,8 +221,8 @@
 
         <div class="control-group">
             <label>Mix</label>
-            <input type="range" id="gradientMix" min="0" max="100" value="80">
-            <span class="value" id="gradientMixVal">80</span>
+            <input type="range" id="gradientMix" min="0" max="100" value="100">
+            <span class="value" id="gradientMixVal">100</span>
         </div>
 
         <div class="divider"></div>
@@ -257,10 +257,10 @@
 
         const iris = {
             x: W / 2, y: H / 2,
-            size: 200,       // inner radius (sharp zone)
+            size: 65,        // inner radius (sharp zone)
             feather: 150,    // feather width (transition zone)
             roundness: 70,   // 20-100, controls ellipse aspect (100 = circle)
-            blur: 15
+            blur: 20
         };
 
         // Gradient map — custom stops
@@ -272,7 +272,7 @@
             { pos: 0.85, color: '#0066cc' },
             { pos: 1, color: '#000000' }
         ];
-        let gradientMix = 0.8;
+        let gradientMix = 1.0;
         let gradientLUT = null;
         let selectedStopIndex = -1;
 
