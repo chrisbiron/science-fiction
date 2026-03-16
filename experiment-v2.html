@@ -212,7 +212,7 @@
         <div class="divider"></div>
 
         <div class="gradient-editor" id="gradientEditor">
-            <label>Gradient <span class="gradient-hint">(click bar to add, right-click stop to remove)</span></label>
+            <label>Gradient <span class="gradient-hint">(click stop to recolor, drag to move, right-click to remove, click bar to add)</span></label>
             <div class="gradient-track" id="gradientTrack">
                 <div class="gradient-track-bg" id="gradientTrackBg"></div>
             </div>
@@ -229,13 +229,6 @@
 
         <button class="btn active" id="followToggle">Follow: On</button>
         <button class="btn active" id="guidesToggle">Guides: On</button>
-        <button class="btn active" id="thresholdToggle">Threshold: On</button>
-
-        <div class="control-group">
-            <label>Cutoff</label>
-            <input type="range" id="cutoff" min="1" max="254" value="10">
-            <span class="value" id="cutoffVal">10</span>
-        </div>
     </div>
 
     <script>
@@ -260,8 +253,6 @@
         let svgImage = null;
         let followCursor = true;
         let showGuides = true;
-        let thresholdOn = true;
-        let thresholdCutoff = 10;
         let pendingRender = false;
 
         const iris = {
@@ -306,11 +297,23 @@
         const gradientTrackBg = document.getElementById('gradientTrackBg');
         const gradientStopsRow = document.getElementById('gradientStopsRow');
         let dragStopIndex = -1;
+        let stopDragged = false;
         // Hidden color input for picking
         const hiddenColorInput = document.createElement('input');
         hiddenColorInput.type = 'color';
         hiddenColorInput.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0;';
         document.body.appendChild(hiddenColorInput);
+
+        function openColorPicker(index) {
+            hiddenColorInput.value = gradientStops[index].color;
+            hiddenColorInput.oninput = (ev) => {
+                gradientStops[index].color = ev.target.value;
+                buildGradientLUT();
+                updateGradientUI();
+                render();
+            };
+            hiddenColorInput.click();
+        }
 
         function updateGradientUI() {
             // Update track background
@@ -326,30 +329,16 @@
                 el.style.left = (stop.pos * 200) + 'px';
                 el.innerHTML = `<div class="stop-arrow"></div><div class="stop-swatch" style="background:${stop.color}"></div>`;
 
-                // Drag to reposition
+                // Mousedown: start drag tracking
                 el.addEventListener('mousedown', (e) => {
-                    if (e.button === 2) return; // right-click handled separately
+                    if (e.button === 2) return;
                     e.preventDefault();
                     e.stopPropagation();
                     dragStopIndex = i;
+                    stopDragged = false;
                     selectedStopIndex = i;
                     el.classList.add('dragging');
                     updateGradientUI();
-                });
-
-                // Double-click to change color
-                el.addEventListener('dblclick', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    selectedStopIndex = i;
-                    hiddenColorInput.value = gradientStops[i].color;
-                    hiddenColorInput.click();
-                    hiddenColorInput.oninput = (ev) => {
-                        gradientStops[i].color = ev.target.value;
-                        buildGradientLUT();
-                        updateGradientUI();
-                        render();
-                    };
                 });
 
                 // Right-click to remove (min 2 stops)
@@ -371,6 +360,7 @@
         // Drag handling
         document.addEventListener('mousemove', (e) => {
             if (dragStopIndex < 0) return;
+            stopDragged = true;
             const rect = gradientTrack.getBoundingClientRect();
             let pos = (e.clientX - rect.left) / rect.width;
             pos = Math.max(0, Math.min(1, pos));
@@ -381,9 +371,14 @@
         });
         document.addEventListener('mouseup', () => {
             if (dragStopIndex >= 0) {
+                const idx = dragStopIndex;
                 const els = gradientStopsRow.querySelectorAll('.gradient-stop');
                 els.forEach(el => el.classList.remove('dragging'));
                 dragStopIndex = -1;
+                // If it was a click (not dragged), open color picker
+                if (!stopDragged) {
+                    openColorPicker(idx);
+                }
             }
         });
 
@@ -449,7 +444,6 @@
         bindSlider('feather', 'featherVal', iris, 'feather');
         bindSlider('roundness', 'roundnessVal', iris, 'roundness');
         bindSlider('blur', 'blurVal', iris, 'blur', () => { blurCacheDirty = true; });
-        bindSlider('cutoff', 'cutoffVal', null, null, (v) => { thresholdCutoff = v; });
         bindSlider('gradientMix', 'gradientMixVal', null, null, (v) => { gradientMix = v / 100; });
 
         // Toggles
@@ -466,13 +460,6 @@
             e.target.classList.toggle('active', showGuides);
             render();
         });
-        document.getElementById('thresholdToggle').addEventListener('click', (e) => {
-            thresholdOn = !thresholdOn;
-            e.target.textContent = `Threshold: ${thresholdOn ? 'On' : 'Off'}`;
-            e.target.classList.toggle('active', thresholdOn);
-            render();
-        });
-
         // --- Mouse ---
         function getCanvasPos(e) {
             const rect = canvas.getBoundingClientRect();
@@ -623,14 +610,6 @@
                     rd[idx + 1] = g;
                     rd[idx + 2] = b;
                     rd[idx + 3] = 255;
-                }
-            }
-
-            // Threshold
-            if (thresholdOn) {
-                for (let i = 0; i < rd.length; i += 4) {
-                    const val = rd[i] >= thresholdCutoff ? 255 : 0;
-                    rd[i] = val; rd[i + 1] = val; rd[i + 2] = val;
                 }
             }
 
