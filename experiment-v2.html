@@ -101,38 +101,75 @@
         }
         #svgUpload { display: none; }
 
-        /* Gradient bar */
-        .gradient-bar {
+        /* Gradient editor */
+        .gradient-editor {
             display: flex;
-            align-items: center;
-            gap: 6px;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
         }
-        .gradient-preview {
-            width: 80px;
+        .gradient-editor label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .gradient-track {
+            width: 200px;
             height: 18px;
             border-radius: 4px;
             border: 1px solid rgba(255,255,255,0.2);
-            cursor: pointer;
+            cursor: crosshair;
+            position: relative;
         }
-        .gradient-stops {
-            display: flex;
-            gap: 3px;
-        }
-        .gradient-stops input[type="color"] {
-            width: 22px;
-            height: 22px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px;
-            background: none;
-            cursor: pointer;
-            padding: 0;
-        }
-        .gradient-stops input[type="color"]::-webkit-color-swatch-wrapper {
-            padding: 1px;
-        }
-        .gradient-stops input[type="color"]::-webkit-color-swatch {
-            border: none;
+        .gradient-track-bg {
+            width: 100%;
+            height: 100%;
             border-radius: 3px;
+        }
+        .gradient-stops-row {
+            width: 200px;
+            height: 16px;
+            position: relative;
+        }
+        .gradient-stop {
+            position: absolute;
+            top: 0;
+            width: 12px;
+            height: 16px;
+            transform: translateX(-6px);
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .gradient-stop.dragging { cursor: grabbing; }
+        .gradient-stop .stop-arrow {
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid rgba(255,255,255,0.6);
+        }
+        .gradient-stop.selected .stop-arrow {
+            border-bottom-color: #fff;
+        }
+        .gradient-stop .stop-swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .gradient-stop.selected .stop-swatch {
+            border-color: #fff;
+            box-shadow: 0 0 4px rgba(255,255,255,0.5);
+        }
+        .gradient-stop-color {
+            display: none;
+        }
+        .gradient-hint {
+            font-size: 9px;
+            color: rgba(255,255,255,0.25);
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -174,14 +211,12 @@
 
         <div class="divider"></div>
 
-        <div class="control-group">
-            <label>Gradient</label>
-            <div class="gradient-stops">
-                <input type="color" id="color1" value="#000000">
-                <input type="color" id="color2" value="#ff0066">
-                <input type="color" id="color3" value="#00ccff">
-                <input type="color" id="color4" value="#ffffff">
+        <div class="gradient-editor" id="gradientEditor">
+            <label>Gradient <span class="gradient-hint">(click bar to add, right-click stop to remove)</span></label>
+            <div class="gradient-track" id="gradientTrack">
+                <div class="gradient-track-bg" id="gradientTrackBg"></div>
             </div>
+            <div class="gradient-stops-row" id="gradientStopsRow"></div>
         </div>
 
         <div class="control-group">
@@ -237,20 +272,24 @@
             blur: 15
         };
 
-        // Gradient map colors
-        let gradientColors = ['#000000', '#ff0066', '#00ccff', '#ffffff'];
+        // Gradient map — custom stops
+        let gradientStops = [
+            { pos: 0, color: '#000000' },
+            { pos: 0.33, color: '#ff0066' },
+            { pos: 0.66, color: '#00ccff' },
+            { pos: 1, color: '#ffffff' }
+        ];
         let gradientMix = 0.8;
-        let gradientLUT = null; // 256-entry RGB lookup table
+        let gradientLUT = null;
+        let selectedStopIndex = -1;
 
         function buildGradientLUT() {
             const c = document.createElement('canvas');
             c.width = 256; c.height = 1;
             const gc = c.getContext('2d');
             const grad = gc.createLinearGradient(0, 0, 256, 0);
-            grad.addColorStop(0, gradientColors[0]);
-            grad.addColorStop(0.33, gradientColors[1]);
-            grad.addColorStop(0.66, gradientColors[2]);
-            grad.addColorStop(1, gradientColors[3]);
+            const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+            sorted.forEach(s => grad.addColorStop(Math.min(1, Math.max(0, s.pos)), s.color));
             gc.fillStyle = grad;
             gc.fillRect(0, 0, 256, 1);
             const data = gc.getImageData(0, 0, 256, 1).data;
@@ -261,7 +300,113 @@
                 gradientLUT[i * 3 + 2] = data[i * 4 + 2];
             }
         }
+
+        // --- Gradient editor UI ---
+        const gradientTrack = document.getElementById('gradientTrack');
+        const gradientTrackBg = document.getElementById('gradientTrackBg');
+        const gradientStopsRow = document.getElementById('gradientStopsRow');
+        let dragStopIndex = -1;
+        // Hidden color input for picking
+        const hiddenColorInput = document.createElement('input');
+        hiddenColorInput.type = 'color';
+        hiddenColorInput.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0;';
+        document.body.appendChild(hiddenColorInput);
+
+        function updateGradientUI() {
+            // Update track background
+            const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+            const cssStops = sorted.map(s => `${s.color} ${(s.pos * 100).toFixed(1)}%`).join(', ');
+            gradientTrackBg.style.background = `linear-gradient(to right, ${cssStops})`;
+
+            // Rebuild stop markers
+            gradientStopsRow.innerHTML = '';
+            gradientStops.forEach((stop, i) => {
+                const el = document.createElement('div');
+                el.className = 'gradient-stop' + (i === selectedStopIndex ? ' selected' : '');
+                el.style.left = (stop.pos * 200) + 'px';
+                el.innerHTML = `<div class="stop-arrow"></div><div class="stop-swatch" style="background:${stop.color}"></div>`;
+
+                // Drag to reposition
+                el.addEventListener('mousedown', (e) => {
+                    if (e.button === 2) return; // right-click handled separately
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragStopIndex = i;
+                    selectedStopIndex = i;
+                    el.classList.add('dragging');
+                    updateGradientUI();
+                });
+
+                // Double-click to change color
+                el.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectedStopIndex = i;
+                    hiddenColorInput.value = gradientStops[i].color;
+                    hiddenColorInput.click();
+                    hiddenColorInput.oninput = (ev) => {
+                        gradientStops[i].color = ev.target.value;
+                        buildGradientLUT();
+                        updateGradientUI();
+                        render();
+                    };
+                });
+
+                // Right-click to remove (min 2 stops)
+                el.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (gradientStops.length <= 2) return;
+                    gradientStops.splice(i, 1);
+                    if (selectedStopIndex >= gradientStops.length) selectedStopIndex = gradientStops.length - 1;
+                    buildGradientLUT();
+                    updateGradientUI();
+                    render();
+                });
+
+                gradientStopsRow.appendChild(el);
+            });
+        }
+
+        // Drag handling
+        document.addEventListener('mousemove', (e) => {
+            if (dragStopIndex < 0) return;
+            const rect = gradientTrack.getBoundingClientRect();
+            let pos = (e.clientX - rect.left) / rect.width;
+            pos = Math.max(0, Math.min(1, pos));
+            gradientStops[dragStopIndex].pos = pos;
+            buildGradientLUT();
+            updateGradientUI();
+            render();
+        });
+        document.addEventListener('mouseup', () => {
+            if (dragStopIndex >= 0) {
+                const els = gradientStopsRow.querySelectorAll('.gradient-stop');
+                els.forEach(el => el.classList.remove('dragging'));
+                dragStopIndex = -1;
+            }
+        });
+
+        // Click track to add stop
+        gradientTrack.addEventListener('click', (e) => {
+            const rect = gradientTrack.getBoundingClientRect();
+            const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            // Sample the current gradient at this position to pick a default color
+            const lutIdx = Math.round(pos * 255) * 3;
+            const r = gradientLUT[lutIdx], g = gradientLUT[lutIdx + 1], b = gradientLUT[lutIdx + 2];
+            const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+            gradientStops.push({ pos, color: hex });
+            selectedStopIndex = gradientStops.length - 1;
+            buildGradientLUT();
+            updateGradientUI();
+            render();
+        });
+
+        // Prevent context menu on stops row
+        gradientStopsRow.addEventListener('contextmenu', (e) => e.preventDefault());
+
         buildGradientLUT();
+        updateGradientUI();
 
         // Dragging
         let dragging = false;
@@ -306,15 +451,6 @@
         bindSlider('blur', 'blurVal', iris, 'blur', () => { blurCacheDirty = true; });
         bindSlider('cutoff', 'cutoffVal', null, null, (v) => { thresholdCutoff = v; });
         bindSlider('gradientMix', 'gradientMixVal', null, null, (v) => { gradientMix = v / 100; });
-
-        // Color pickers
-        ['color1', 'color2', 'color3', 'color4'].forEach((id, i) => {
-            document.getElementById(id).addEventListener('input', (e) => {
-                gradientColors[i] = e.target.value;
-                buildGradientLUT();
-                render();
-            });
-        });
 
         // Toggles
         document.getElementById('followToggle').addEventListener('click', (e) => {
